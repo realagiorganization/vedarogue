@@ -17,6 +17,7 @@
 - Test presence: `make hf_test_dataset_was_fetched`.
 
 **Generate LaTeX + PDF (Emacs + LaTeX in Docker)**
+- Build toolchain images (first time): `make docker_build_all`
 - Export JSON (small slice): `make hf_export_json HF_SPLITS='train[:10]'`
 - Generate TeX: `make emacs_tex VRANGE='train:0-9' VTITLE='Selected Verses'`
 - Compile PDF: `make latex_pdf` (produces `build/verses.pdf`).
@@ -25,7 +26,9 @@
 Notes:
 - The Emacs script reads `build/verses.json` and writes `build/verses.tex`.
 - The LaTeX template uses `polyglossia` and `fontspec` with `Noto Sans Devanagari` for Sanskrit.
-- You can override Docker images via env vars: `EMACS_IMAGE`, `TEX_IMAGE`, `OCR_IMAGE`, `POPPLER_IMAGE`, `PY_IMAGE`.
+- This pipeline strictly uses Docker. Ensure images are present:
+  - Build local multi-arch images: `make docker_build_all` (recommended)
+  - Or set env vars to alternative images: `EMACS_IMAGE`, `TEX_IMAGE`, `OCR_IMAGE`, `POPPLER_IMAGE`, `PY_IMAGE`, then `make images_pull`
 
 **DSPy Roguelike YAML**
 - Purpose: Generate a roguelike screen description (level, items, dialogs) YAML from a range of verses, with optional LLM.
@@ -68,7 +71,11 @@ Notes:
  - `build_pdf`: Convenience: export JSON, generate TeX, compile PDF.
  - `ocr_pdf`: OCR the PDF to add a searchable text layer.
  - `pdf_text`: Extract text from the OCRed PDF to a `.txt` file.
-- `ocr_and_test`: Runs OCR+extraction and validates against expected verses.
+ - `ocr_and_test`: Runs OCR+extraction and validates against expected verses.
+ - `ci`: CI-friendly target that runs the full pipeline (dataset → TeX → PDF → OCR → validation) and DSPy YAML + tests.
+ - `docker_build_all`: Build local toolchain Docker images (Emacs, TeX, OCR, Poppler).
+ - `check_images`: Verify required images are present locally (fails otherwise).
+ - `images_pull`: Pull configured images from registries.
  - `dspy_yaml`: Generate roguelike YAML from verses.
  - `dspy_test`: Run pytest for DSPy program.
  - `dspy_notebook`: Execute self-improvement Jupyter notebook.
@@ -81,17 +88,19 @@ Notes:
 - Override filename if URL is not descriptive:
   - `make fetch DATASET_URL='https://.../download?id=123' DATASET_FILENAME=mydata.zip`
 - Hugging Face dataset export (all splits):
-  - `make setup && make hf_fetch HF_DATASET_ID=manojbalaji1/anveshana`
+ - `make setup && make hf_fetch HF_DATASET_ID=manojbalaji1/anveshana`
 - Specific splits with revision and token:
   - `make hf_fetch HF_DATASET_ID=manojbalaji1/anveshana HF_SPLITS=train,test HF_REVISION=main HF_TOKEN=xxxx`
- - Export JSON and build PDF for 10 rows:
-   - `make build_pdf HF_SPLITS='train[:10]' VRANGE='train:0-9'`
+ - Build images, export JSON and build PDF for 10 rows:
+   - `make docker_build_all && make build_pdf HF_SPLITS='train[:10]' VRANGE='train:0-9'`
  - OCR and validate the PDF content against the exported JSON:
    - `make ocr_and_test`
  - Generate roguelike YAML for 10 rows:
    - `make hf_export_json HF_SPLITS='train[:10]' && make dspy_yaml VRANGE='train:0-9'`
  - Run tests and self-improvement notebook:
    - `make dspy_test && make dspy_notebook`
+ - Full CI pipeline locally (after building images):
+   - `make docker_build_all && make ci`
 
 **Notes**
 - Requires either `curl` or `wget` to download, and `unzip` for zip archives.

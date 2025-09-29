@@ -11,6 +11,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build local Docker toolchain images
+        run: |
+          make docker_build_all
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -20,48 +24,21 @@ jobs:
         run: |
           make setup
 
-      - name: Export JSON (small slice)
+      - name: Run CI make target (full pipeline + tests)
         env:
+          EMACS_IMAGE: vedarogue/emacs:latest
+          TEX_IMAGE: vedarogue/tex:latest
+          OCR_IMAGE: vedarogue/ocr:latest
+          POPPLER_IMAGE: vedarogue/poppler:latest
           HF_DATASET_ID: manojbalaji1/anveshana
-          HF_SPLITS: train[:10]
         run: |
-          make hf_export_json
-
-      - name: Generate TeX via Emacs (Docker)
-        env:
-          VRANGE: train:0-9
-          VTITLE: Selected Verses (CI)
-        run: |
-          make emacs_tex
-
-      - name: Compile PDF via LaTeX (Docker)
-        run: |
-          make latex_pdf
-
-      - name: OCR and Validate
-        run: |
-          make ocr_and_test
+          make ci
 
       - name: Upload PDF artifact
         uses: actions/upload-artifact@v4
         with:
           name: verses-pdf
           path: build/verses.pdf
-
-      - name: Run DSPy YAML generation (CLI)
-        env:
-          VRANGE: train:0-3
-        run: |
-          make hf_export_json HF_SPLITS='train[:5]'
-          make dspy_yaml
-
-      - name: Run pytest for DSPy program
-        run: |
-          make dspy_test
-
-      - name: Execute self-improvement notebook
-        run: |
-          make dspy_notebook
 
       - name: Upload Roguelike Artifacts
         uses: actions/upload-artifact@v4

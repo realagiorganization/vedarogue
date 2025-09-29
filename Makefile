@@ -4,7 +4,9 @@ SHELL := /bin/bash
 .PHONY: help fetch verify extract info env clean distclean tree test_dataset_was_fetched \
 setup hf_fetch hf_info hf_test_dataset_was_fetched \
 hf_export_json emacs_tex latex_pdf build_pdf ocr_pdf pdf_text ocr_and_test \
-dspy_yaml dspy_test dspy_notebook watch_autocommit
+dspy_yaml dspy_test dspy_notebook watch_autocommit \
+check_docker check_images images_pull docker_build_emacs docker_build_tex docker_build_ocr docker_build_poppler docker_build_all \
+ci
 .DEFAULT_GOAL := help
 
 # Load local configuration if present
@@ -27,6 +29,10 @@ DATASET_ARCHIVE ?= $(RAW_DIR)/$(DATASET_FILENAME)
 MAKE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 SCRIPTS_DIR := $(MAKE_DIR)scripts
 BUILD_DIR := $(MAKE_DIR)build
+CI_HF_SPLITS ?= train[:10]
+CI_VRANGE ?= train:0-9
+CI_VRANGE_SHORT ?= train:0-3
+CI_VTITLE ?= Selected Verses (CI)
 
 help: ## Show available targets and brief help
 	@echo "Dataset Make targets:" && \
@@ -42,11 +48,11 @@ help: ## Show available targets and brief help
 	  HF_SPLITS "Comma-separated splits to export (optional)" \
 	  HF_REVISION "Branch/tag/commit sha (optional)" \
 	  HF_TOKEN "Auth token if needed (optional)" \
-	  EMACS_IMAGE "Docker image for Emacs batch" \
-	  TEX_IMAGE "Docker image for LaTeX build" \
-	  OCR_IMAGE "Docker image for OCR (ocrmypdf)" \
-	  POPPLER_IMAGE "Docker image with pdftotext" \
-	  PY_IMAGE "Docker image for Python test" \
+	  EMACS_IMAGE "Docker image for Emacs batch (required)" \
+	  TEX_IMAGE "Docker image for LaTeX build (required)" \
+	  OCR_IMAGE "Docker image for OCR (required)" \
+	  POPPLER_IMAGE "Docker image with pdftotext (required)" \
+	  PY_IMAGE "Docker image for Python test (default: python:3.11-slim)" \
 	  OPENAI_API_KEY "LLM key for DSPy (optional)" \
 	  OPENAI_MODEL "LLM model id (default: gpt-4o-mini)" \
 	  OPENAI_BASE "LLM API base URL (optional)"
@@ -138,14 +144,39 @@ hf_test_dataset_was_fetched: hf_fetch ## Test: HF files exist in extract dir
 	fi
 
 # ---------------------------
-# Emacs + LaTeX + OCR toolchain
+# Emacs + LaTeX + OCR toolchain (Docker only)
 # ---------------------------
 
-EMACS_IMAGE ?= silex/emacs:29.1
-TEX_IMAGE ?= ghcr.io/xu-cheng/texlive-full:latest
-OCR_IMAGE ?= ghcr.io/jbarlow83/ocrmypdf:latest
-POPPLER_IMAGE ?= minidocks/poppler:latest
+# Default to locally built images to ensure multi-arch compatibility.
+# Build them via: make docker_build_all
+EMACS_IMAGE ?= vedarogue/emacs:latest
+TEX_IMAGE ?= vedarogue/tex:latest
+OCR_IMAGE ?= vedarogue/ocr:latest
+POPPLER_IMAGE ?= vedarogue/poppler:latest
 PY_IMAGE ?= python:3.11-slim
+
+check_docker:
+	@command -v docker >/dev/null 2>&1 || { echo "ERROR: docker is not installed or not in PATH"; exit 1; }
+	@docker info >/dev/null 2>&1 || { echo "ERROR: docker daemon not running or not accessible"; exit 1; }
+
+check_images: check_docker
+	@missing=""; \
+	for img in "$(EMACS_IMAGE)" "$(TEX_IMAGE)" "$(OCR_IMAGE)" "$(POPPLER_IMAGE)"; do \
+	  if ! docker image inspect $$img >/dev/null 2>&1; then \
+	    missing="$$missing $$img"; \
+	  fi; \
+	done; \
+	if [ -n "$$missing" ]; then \
+	  echo "ERROR: Missing required images:$$missing"; \
+	  echo "Build them with: make docker_build_all"; \
+	  echo "Or pull/provide alternatives via EMACS_IMAGE/TEX_IMAGE/OCR_IMAGE/POPPLER_IMAGE variables."; \
+	  exit 1; \
+	fi
+
+images_pull: check_docker ## Attempt to pull configured images from registries
+	@set -e; for img in "$(EMACS_IMAGE)" "$(TEX_IMAGE)" "$(OCR_IMAGE)" "$(POPPLER_IMAGE)"; do \
+	  echo "Pulling $$img"; docker pull $$img; \
+	done
 
 $(BUILD_DIR):
 	@mkdir -p "$(BUILD_DIR)"
@@ -156,52 +187,31 @@ hf_export_json: $(BUILD_DIR) ## Export HF dataset rows to JSON for Emacs
 	  $(if $(HF_REVISION),--revision "$(HF_REVISION)",) \
 	  --out "$(BUILD_DIR)/verses.json"
 
-emacs_tex: $(BUILD_DIR) ## Run Emacs in Docker to generate LaTeX from JSON
-	@set -e; \
-	if docker image inspect $(EMACS_IMAGE) >/dev/null 2>&1 || docker pull $(EMACS_IMAGE); then \
-	  docker run --rm -v "$(MAKE_DIR)":/work -w /work \
-	    -e VJSON="build/verses.json" \
-	    -e VOUT="build/verses.tex" \
-	    -e VRANGE="$(VRANGE)" \
-	    -e VTITLE="$(VTITLE)" \
-	    $(EMACS_IMAGE) \
-	    emacs --batch -Q -l scripts/verses.el -f verses-main ; \
-	else \
-	  if command -v emacs >/dev/null 2>&1; then \
-	    echo "Docker image $(EMACS_IMAGE) unavailable; falling back to host Emacs"; \
-	    VJSON="build/verses.json" VOUT="build/verses.tex" VRANGE="$(VRANGE)" VTITLE="$(VTITLE)" \
-	      emacs --batch -Q -l scripts/verses.el -f verses-main; \
-	  else \
-	    echo "ERROR: Emacs Docker image not available and no host Emacs found"; exit 1; \
-	  fi; \
-	fi
+emacs_tex: check_images $(BUILD_DIR) ## Run Emacs in Docker to generate LaTeX from JSON
+	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
+	  -e VJSON="build/verses.json" \
+	  -e VOUT="build/verses.tex" \
+	  -e VRANGE="$(VRANGE)" \
+	  -e VTITLE="$(VTITLE)" \
+	  $(EMACS_IMAGE) \
+	  emacs --batch -Q -l scripts/verses.el -f verses-main
 	@echo "LaTeX generated at build/verses.tex"
 
-latex_pdf: $(BUILD_DIR) ## Compile LaTeX to PDF in Docker (fallback to host latexmk)
-	@set -e; \
-	if docker image inspect $(TEX_IMAGE) >/dev/null 2>&1 || docker pull $(TEX_IMAGE); then \
-	  docker run --rm -v "$(MAKE_DIR)":/work -w /work \
-	    $(TEX_IMAGE) \
-	    sh -lc "latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir=build build/verses.tex" ; \
-	else \
-	  if command -v latexmk >/dev/null 2>&1; then \
-	    echo "Docker image $(TEX_IMAGE) unavailable; falling back to host latexmk"; \
-	    latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir=build build/verses.tex; \
-	  else \
-	    echo "ERROR: TeX Docker image not available and no host latexmk found"; exit 1; \
-	  fi; \
-	fi
+latex_pdf: check_images $(BUILD_DIR) ## Compile LaTeX to PDF in Docker
+	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
+	  $(TEX_IMAGE) \
+	  sh -lc "latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir=build build/verses.tex"
 	@echo "PDF at build/verses.pdf"
 
 build_pdf: hf_export_json emacs_tex latex_pdf ## Export JSON, gen LaTeX, compile PDF
 
-ocr_pdf: ## Run OCR on PDF to add text layer
+ocr_pdf: check_images ## Run OCR on PDF to add text layer
 	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
 	  $(OCR_IMAGE) \
 	  ocrmypdf --skip-text -l san+eng build/verses.pdf build/verses-ocr.pdf
 	@echo "OCRed PDF at build/verses-ocr.pdf"
 
-pdf_text: ## Extract text from OCRed PDF to a .txt file
+pdf_text: check_images ## Extract text from OCRed PDF to a .txt file
 	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
 	  $(POPPLER_IMAGE) \
 	  pdftotext -enc UTF-8 -layout build/verses-ocr.pdf build/verses.txt
@@ -226,6 +236,40 @@ dspy_test: ## Run pytest for roguelike YAML generator
 
 dspy_notebook: ## Execute self-improvement Jupyter notebook
 	@jupyter nbconvert --to notebook --execute notebooks/roguelike_self_improve.ipynb --output build/roguelike_self_improve.out.ipynb
+
+# ---------------------------
+# CI convenience target (full pipeline + tests)
+# ---------------------------
+
+ci: check_images ## Run end-to-end pipeline and tests for CI
+	@$(MAKE) setup
+	@$(MAKE) hf_test_dataset_was_fetched
+	@$(MAKE) hf_export_json HF_SPLITS="$(CI_HF_SPLITS)"
+	@$(MAKE) emacs_tex VRANGE="$(CI_VRANGE)" VTITLE="$(CI_VTITLE)"
+	@$(MAKE) latex_pdf
+	@$(MAKE) ocr_and_test
+	@$(MAKE) dspy_yaml VRANGE="$(CI_VRANGE_SHORT)"
+	@$(MAKE) dspy_test
+	@$(MAKE) dspy_notebook
+	@echo "CI pipeline completed successfully"
+
+# ---------------------------
+# Local Docker image builds (multi-arch-friendly via Debian base)
+# ---------------------------
+
+docker_build_emacs: ## Build local Emacs image (vedarogue/emacs:latest)
+	@docker build -t vedarogue/emacs:latest -f docker/emacs/Dockerfile docker/emacs
+
+docker_build_tex: ## Build local TeX image (vedarogue/tex:latest)
+	@docker build -t vedarogue/tex:latest -f docker/tex/Dockerfile docker/tex
+
+docker_build_ocr: ## Build local OCR image (vedarogue/ocr:latest)
+	@docker build -t vedarogue/ocr:latest -f docker/ocr/Dockerfile docker/ocr
+
+docker_build_poppler: ## Build local Poppler image (vedarogue/poppler:latest)
+	@docker build -t vedarogue/poppler:latest -f docker/poppler/Dockerfile docker/poppler
+
+docker_build_all: docker_build_emacs docker_build_tex docker_build_ocr docker_build_poppler ## Build all local images
 
 # ---------------------------
 # Dev tooling

@@ -4,7 +4,7 @@ SHELL := /bin/bash
 .PHONY: help fetch verify extract info env clean distclean tree test_dataset_was_fetched \
 setup hf_fetch hf_info hf_test_dataset_was_fetched \
 hf_export_json emacs_tex latex_pdf build_pdf ocr_pdf pdf_text ocr_and_test \
-dspy_yaml dspy_test dspy_notebook
+dspy_yaml dspy_test dspy_notebook watch_autocommit
 .DEFAULT_GOAL := help
 
 # Load local configuration if present
@@ -177,10 +177,20 @@ emacs_tex: $(BUILD_DIR) ## Run Emacs in Docker to generate LaTeX from JSON
 	fi
 	@echo "LaTeX generated at build/verses.tex"
 
-latex_pdf: $(BUILD_DIR) ## Compile LaTeX to PDF in Docker
-	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
-	  $(TEX_IMAGE) \
-	  sh -lc "latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir=build build/verses.tex"
+latex_pdf: $(BUILD_DIR) ## Compile LaTeX to PDF in Docker (fallback to host latexmk)
+	@set -e; \
+	if docker image inspect $(TEX_IMAGE) >/dev/null 2>&1 || docker pull $(TEX_IMAGE); then \
+	  docker run --rm -v "$(MAKE_DIR)":/work -w /work \
+	    $(TEX_IMAGE) \
+	    sh -lc "latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir=build build/verses.tex" ; \
+	else \
+	  if command -v latexmk >/dev/null 2>&1; then \
+	    echo "Docker image $(TEX_IMAGE) unavailable; falling back to host latexmk"; \
+	    latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir=build build/verses.tex; \
+	  else \
+	    echo "ERROR: TeX Docker image not available and no host latexmk found"; exit 1; \
+	  fi; \
+	fi
 	@echo "PDF at build/verses.pdf"
 
 build_pdf: hf_export_json emacs_tex latex_pdf ## Export JSON, gen LaTeX, compile PDF
@@ -216,3 +226,10 @@ dspy_test: ## Run pytest for roguelike YAML generator
 
 dspy_notebook: ## Execute self-improvement Jupyter notebook
 	@jupyter nbconvert --to notebook --execute notebooks/roguelike_self_improve.ipynb --output build/roguelike_self_improve.out.ipynb
+
+# ---------------------------
+# Dev tooling
+# ---------------------------
+
+watch_autocommit: ## Watch files and auto-commit using codex-cli for messages
+	@bash scripts/watch_autocommit.sh

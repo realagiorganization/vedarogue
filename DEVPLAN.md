@@ -4,8 +4,8 @@
 Transform Vedabase-derived materials into interactive Emacs Lisp roguelike experiences with translation-friendly publishing outputs.
 
 ## Next Step
-- Expand `scripts/build_blueprint.py` to support multiple rooms/items via embeddings or manual lists, and add unit tests to validate the YAML schema.
-- Decide whether room connectivity should be linear, hub-based, or embedding-driven and document the interim choice.
+- Integrate the new dataset lists-of-lists export into `scripts/build_blueprint.py` so rooms/items draw from real data.
+- Document how audio hooks will map from dataset manifests into roguelike events.
 
 ## Backlog
 - Capture a validation plan for the docker image toolchain after the roguelike data flow is defined.

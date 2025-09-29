@@ -1,0 +1,9 @@
+# Local config
+.env
+
+# Data directories
+data/
+
+# macOS
+.DS_Store
+

@@ -12,3 +12,5 @@ Align research notebooks and docker tooling with the subtree sync workflow.
 
 ## Notes
 - Capture outcomes after each managed worker run and update this plan accordingly.
+- codex-cli unavailable on current host; managed worker execution deferred.
+

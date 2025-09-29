@@ -31,8 +31,9 @@
                ("_"  . "\\_")
                ("^"  . "\\textasciicircum{}")
                ("~"  . "\\textasciitilde{}"))))
+    ;; Quote patterns to avoid regexp issues (e.g., single backslash)
     (cl-reduce (lambda (acc pair)
-                 (replace-regexp-in-string (car pair) (cdr pair) acc t t))
+                 (replace-regexp-in-string (regexp-quote (car pair)) (cdr pair) acc t t))
                tbl :initial-value (or s ""))))
 
 (defun verses--parse-range (range)

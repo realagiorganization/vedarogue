@@ -65,7 +65,11 @@ Returns plist: (:split maybe-string :start number :end number)."
     (insert "\\usepackage{fontspec}\n")
     (insert "\\usepackage{polyglossia}\n")
     (insert "\\setmainlanguage{english}\\setotherlanguage{sanskrit}\n")
-    (insert "\\newfontfamily\\sanskritfont[Script=Devanagari]{Noto Sans Devanagari}\n")
+    (insert "\\ExplSyntaxOn\\newif\\ifsanskritfontset\\ExplSyntaxOff\n")
+    (insert "\\IfFontExistsTF{Noto Serif Devanagari}{\\newfontfamily\\sanskritfont[Script=Devanagari]{Noto Serif Devanagari}\\sanskritfontsettrue}{\\sanskritfontsetfalse}\n")
+    (insert "\\ifsanskritfontset\\else\\IfFontExistsTF{Sanskrit 2003}{\\newfontfamily\\sanskritfont[Script=Devanagari]{Sanskrit 2003}\\sanskritfontsettrue}{\\sanskritfontsetfalse}\\fi\n")
+    (insert "\\ifsanskritfontset\\else\\IfFontExistsTF{Noto Sans Devanagari}{\\newfontfamily\\sanskritfont[Script=Devanagari]{Noto Sans Devanagari}\\sanskritfontsettrue}{\\sanskritfontsetfalse}\\fi\n")
+    (insert "\\ifsanskritfontset\\else\\newfontfamily\\sanskritfont{FreeSerif}\\fi\n")
     (insert "\\newfontfamily\\englishfont{Latin Modern Roman}\n")
     (insert "\\usepackage[a4paper,margin=1in]{geometry}\n")
     (insert "\\usepackage{paracol}\n")
@@ -114,4 +118,3 @@ Returns plist: (:split maybe-string :start number :end number)."
   (verses-generate-latex))
 
 ;;; verses.el ends here
-

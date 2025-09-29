@@ -1,3 +1,3 @@
 # Immediate Task
 
-Check docker/Makefile documentation for branch references and refresh them to mention `from-monorepo-main`.
+Sketch a test plan for re-running the docker image builds and smoke checks now that branch docs are confirmed.

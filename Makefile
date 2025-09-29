@@ -3,7 +3,8 @@ SHELL := /bin/bash
 
 .PHONY: help fetch verify extract info env clean distclean tree test_dataset_was_fetched \
 setup hf_fetch hf_info hf_test_dataset_was_fetched \
-hf_export_json emacs_tex latex_pdf build_pdf ocr_pdf pdf_text ocr_and_test
+hf_export_json emacs_tex latex_pdf build_pdf ocr_pdf pdf_text ocr_and_test \
+dspy_yaml dspy_test dspy_notebook
 .DEFAULT_GOAL := help
 
 # Load local configuration if present
@@ -45,7 +46,10 @@ help: ## Show available targets and brief help
 	  TEX_IMAGE "Docker image for LaTeX build" \
 	  OCR_IMAGE "Docker image for OCR (ocrmypdf)" \
 	  POPPLER_IMAGE "Docker image with pdftotext" \
-	  PY_IMAGE "Docker image for Python test"
+	  PY_IMAGE "Docker image for Python test" \
+	  OPENAI_API_KEY "LLM key for DSPy (optional)" \
+	  OPENAI_MODEL "LLM model id (default: gpt-4o-mini)" \
+	  OPENAI_BASE "LLM API base URL (optional)"
 
 $(RAW_DIR) $(EXTRACT_DIR) $(PROCESSED_DIR):
 	@mkdir -p $@
@@ -137,7 +141,7 @@ hf_test_dataset_was_fetched: hf_fetch ## Test: HF files exist in extract dir
 # Emacs + LaTeX + OCR toolchain
 # ---------------------------
 
-EMACS_IMAGE ?= emacsorg/emacs:29.4
+EMACS_IMAGE ?= silex/emacs:29.1
 TEX_IMAGE ?= ghcr.io/xu-cheng/texlive-full:latest
 OCR_IMAGE ?= ghcr.io/jbarlow83/ocrmypdf:latest
 POPPLER_IMAGE ?= minidocks/poppler:latest
@@ -153,13 +157,24 @@ hf_export_json: $(BUILD_DIR) ## Export HF dataset rows to JSON for Emacs
 	  --out "$(BUILD_DIR)/verses.json"
 
 emacs_tex: $(BUILD_DIR) ## Run Emacs in Docker to generate LaTeX from JSON
-	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
-	  -e VJSON="build/verses.json" \
-	  -e VOUT="build/verses.tex" \
-	  -e VRANGE="$(VRANGE)" \
-	  -e VTITLE="$(VTITLE)" \
-	  $(EMACS_IMAGE) \
-	  emacs --batch -Q -l scripts/verses.el -f verses-main
+	@set -e; \
+	if docker image inspect $(EMACS_IMAGE) >/dev/null 2>&1 || docker pull $(EMACS_IMAGE); then \
+	  docker run --rm -v "$(MAKE_DIR)":/work -w /work \
+	    -e VJSON="build/verses.json" \
+	    -e VOUT="build/verses.tex" \
+	    -e VRANGE="$(VRANGE)" \
+	    -e VTITLE="$(VTITLE)" \
+	    $(EMACS_IMAGE) \
+	    emacs --batch -Q -l scripts/verses.el -f verses-main ; \
+	else \
+	  if command -v emacs >/dev/null 2>&1; then \
+	    echo "Docker image $(EMACS_IMAGE) unavailable; falling back to host Emacs"; \
+	    VJSON="build/verses.json" VOUT="build/verses.tex" VRANGE="$(VRANGE)" VTITLE="$(VTITLE)" \
+	      emacs --batch -Q -l scripts/verses.el -f verses-main; \
+	  else \
+	    echo "ERROR: Emacs Docker image not available and no host Emacs found"; exit 1; \
+	  fi; \
+	fi
 	@echo "LaTeX generated at build/verses.tex"
 
 latex_pdf: $(BUILD_DIR) ## Compile LaTeX to PDF in Docker
@@ -187,3 +202,17 @@ ocr_and_test: ocr_pdf pdf_text ## OCR PDF, extract text, and compare with expect
 	  $(PY_IMAGE) \
 	  sh -lc "python3 scripts/test_pdf_text.py --expected build/verses.json --txt build/verses.txt"
 	@echo "OCR validation passed"
+
+# ---------------------------
+# DSPy roguelike YAML pipeline
+# ---------------------------
+
+dspy_yaml: ## Generate roguelike YAML from verses using DSPy or fallback
+	@python3 scripts/dspy_generate_yaml.py --json build/verses.json --out build/roguelike.yaml --range "$(VRANGE)" --guidelines "$(GUIDELINES)"
+	@echo "Roguelike YAML at build/roguelike.yaml"
+
+dspy_test: ## Run pytest for roguelike YAML generator
+	@pytest -q
+
+dspy_notebook: ## Execute self-improvement Jupyter notebook
+	@jupyter nbconvert --to notebook --execute notebooks/roguelike_self_improve.ipynb --output build/roguelike_self_improve.out.ipynb

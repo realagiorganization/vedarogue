@@ -48,3 +48,26 @@ jobs:
           name: verses-pdf
           path: build/verses.pdf
 
+      - name: Run DSPy YAML generation (CLI)
+        env:
+          VRANGE: train:0-3
+        run: |
+          make hf_export_json HF_SPLITS='train[:5]'
+          make dspy_yaml
+
+      - name: Run pytest for DSPy program
+        run: |
+          make dspy_test
+
+      - name: Execute self-improvement notebook
+        run: |
+          make dspy_notebook
+
+      - name: Upload Roguelike Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: roguelike-yaml
+          path: |
+            build/roguelike.yaml
+            build/roguelike.baseline.yaml
+            build/roguelike.improved.yaml

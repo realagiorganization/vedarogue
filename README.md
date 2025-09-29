@@ -27,6 +27,21 @@ Notes:
 - The LaTeX template uses `polyglossia` and `fontspec` with `Noto Sans Devanagari` for Sanskrit.
 - You can override Docker images via env vars: `EMACS_IMAGE`, `TEX_IMAGE`, `OCR_IMAGE`, `POPPLER_IMAGE`, `PY_IMAGE`.
 
+**DSPy Roguelike YAML**
+- Purpose: Generate a roguelike screen description (level, items, dialogs) YAML from a range of verses, with optional LLM.
+- CLI: `python3 scripts/dspy_generate_yaml.py --json build/verses.json --out build/roguelike.yaml --range 'train:0-9'`.
+- Make targets:
+  - `dspy_yaml`: runs the generator (set `VRANGE` and optional `GUIDELINES`).
+  - `dspy_test`: runs pytest for schema and content checks.
+  - `dspy_notebook`: executes a self-improvement Jupyter notebook that regenerates YAML with stricter guidelines.
+- Notebook: `notebooks/roguelike_self_improve.ipynb` creates `build/roguelike.baseline.yaml` and `build/roguelike.improved.yaml`.
+
+**LLM Keys (for DSPy)**
+- `OPENAI_API_KEY`: API key to enable DSPy LM calls (optional; CI uses deterministic fallback).
+- `OPENAI_MODEL`: model id, e.g., `gpt-4o-mini` (default).
+- `OPENAI_BASE`: custom API base URL (optional).
+- Without keys, the generator uses a deterministic offline heuristic and tests still pass.
+
 **Config Variables**
 - DATASET_NAME: label for the dataset (optional).
 - DATASET_URL: HTTP(S) URL to the dataset file (required for `fetch`).
@@ -53,7 +68,10 @@ Notes:
  - `build_pdf`: Convenience: export JSON, generate TeX, compile PDF.
  - `ocr_pdf`: OCR the PDF to add a searchable text layer.
  - `pdf_text`: Extract text from the OCRed PDF to a `.txt` file.
- - `ocr_and_test`: Runs OCR+extraction and validates against expected verses.
+- `ocr_and_test`: Runs OCR+extraction and validates against expected verses.
+ - `dspy_yaml`: Generate roguelike YAML from verses.
+ - `dspy_test`: Run pytest for DSPy program.
+ - `dspy_notebook`: Execute self-improvement Jupyter notebook.
 
 **Examples**
 - One-off fetch via CLI without `.env`:
@@ -70,6 +88,10 @@ Notes:
    - `make build_pdf HF_SPLITS='train[:10]' VRANGE='train:0-9'`
  - OCR and validate the PDF content against the exported JSON:
    - `make ocr_and_test`
+ - Generate roguelike YAML for 10 rows:
+   - `make hf_export_json HF_SPLITS='train[:10]' && make dspy_yaml VRANGE='train:0-9'`
+ - Run tests and self-improvement notebook:
+   - `make dspy_test && make dspy_notebook`
 
 **Notes**
 - Requires either `curl` or `wget` to download, and `unzip` for zip archives.

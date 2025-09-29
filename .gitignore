@@ -3,7 +3,7 @@
 
 # Data directories
 data/
+build/
 
 # macOS
 .DS_Store
-

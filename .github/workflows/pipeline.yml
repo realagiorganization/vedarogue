@@ -1,0 +1,50 @@
+name: Data PDF Pipeline
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps
+        run: |
+          make setup
+
+      - name: Export JSON (small slice)
+        env:
+          HF_DATASET_ID: manojbalaji1/anveshana
+          HF_SPLITS: train[:10]
+        run: |
+          make hf_export_json
+
+      - name: Generate TeX via Emacs (Docker)
+        env:
+          VRANGE: train:0-9
+          VTITLE: Selected Verses (CI)
+        run: |
+          make emacs_tex
+
+      - name: Compile PDF via LaTeX (Docker)
+        run: |
+          make latex_pdf
+
+      - name: OCR and Validate
+        run: |
+          make ocr_and_test
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: verses-pdf
+          path: build/verses.pdf
+

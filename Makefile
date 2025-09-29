@@ -2,7 +2,8 @@
 SHELL := /bin/bash
 
 .PHONY: help fetch verify extract info env clean distclean tree test_dataset_was_fetched \
-setup hf_fetch hf_info hf_test_dataset_was_fetched
+setup hf_fetch hf_info hf_test_dataset_was_fetched \
+hf_export_json emacs_tex latex_pdf build_pdf ocr_pdf pdf_text ocr_and_test
 .DEFAULT_GOAL := help
 
 # Load local configuration if present
@@ -24,6 +25,7 @@ DATASET_ARCHIVE ?= $(RAW_DIR)/$(DATASET_FILENAME)
 
 MAKE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 SCRIPTS_DIR := $(MAKE_DIR)scripts
+BUILD_DIR := $(MAKE_DIR)build
 
 help: ## Show available targets and brief help
 	@echo "Dataset Make targets:" && \
@@ -38,7 +40,12 @@ help: ## Show available targets and brief help
 	  HF_DATASET_ID "HF dataset id (e.g. user/name)" \
 	  HF_SPLITS "Comma-separated splits to export (optional)" \
 	  HF_REVISION "Branch/tag/commit sha (optional)" \
-	  HF_TOKEN "Auth token if needed (optional)"
+	  HF_TOKEN "Auth token if needed (optional)" \
+	  EMACS_IMAGE "Docker image for Emacs batch" \
+	  TEX_IMAGE "Docker image for LaTeX build" \
+	  OCR_IMAGE "Docker image for OCR (ocrmypdf)" \
+	  POPPLER_IMAGE "Docker image with pdftotext" \
+	  PY_IMAGE "Docker image for Python test"
 
 $(RAW_DIR) $(EXTRACT_DIR) $(PROCESSED_DIR):
 	@mkdir -p $@
@@ -125,3 +132,58 @@ hf_test_dataset_was_fetched: hf_fetch ## Test: HF files exist in extract dir
 	  echo "FAIL: No parquet files for $(HF_DATASET_ID) in $(EXTRACT_DIR)"; \
 	  exit 1; \
 	fi
+
+# ---------------------------
+# Emacs + LaTeX + OCR toolchain
+# ---------------------------
+
+EMACS_IMAGE ?= emacsorg/emacs:29.4
+TEX_IMAGE ?= ghcr.io/xu-cheng/texlive-full:latest
+OCR_IMAGE ?= ghcr.io/jbarlow83/ocrmypdf:latest
+POPPLER_IMAGE ?= minidocks/poppler:latest
+PY_IMAGE ?= python:3.11-slim
+
+$(BUILD_DIR):
+	@mkdir -p "$(BUILD_DIR)"
+
+hf_export_json: $(BUILD_DIR) ## Export HF dataset rows to JSON for Emacs
+	@$(PY) scripts/hf_export_json.py --dataset "$(HF_DATASET_ID)" \
+	  $(if $(HF_SPLITS),--splits "$(HF_SPLITS)",) \
+	  $(if $(HF_REVISION),--revision "$(HF_REVISION)",) \
+	  --out "$(BUILD_DIR)/verses.json"
+
+emacs_tex: $(BUILD_DIR) ## Run Emacs in Docker to generate LaTeX from JSON
+	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
+	  -e VJSON="build/verses.json" \
+	  -e VOUT="build/verses.tex" \
+	  -e VRANGE="$(VRANGE)" \
+	  -e VTITLE="$(VTITLE)" \
+	  $(EMACS_IMAGE) \
+	  emacs --batch -Q -l scripts/verses.el -f verses-main
+	@echo "LaTeX generated at build/verses.tex"
+
+latex_pdf: $(BUILD_DIR) ## Compile LaTeX to PDF in Docker
+	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
+	  $(TEX_IMAGE) \
+	  sh -lc "latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir=build build/verses.tex"
+	@echo "PDF at build/verses.pdf"
+
+build_pdf: hf_export_json emacs_tex latex_pdf ## Export JSON, gen LaTeX, compile PDF
+
+ocr_pdf: ## Run OCR on PDF to add text layer
+	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
+	  $(OCR_IMAGE) \
+	  ocrmypdf --skip-text -l san+eng build/verses.pdf build/verses-ocr.pdf
+	@echo "OCRed PDF at build/verses-ocr.pdf"
+
+pdf_text: ## Extract text from OCRed PDF to a .txt file
+	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
+	  $(POPPLER_IMAGE) \
+	  pdftotext -enc UTF-8 -layout build/verses-ocr.pdf build/verses.txt
+	@echo "Extracted text at build/verses.txt"
+
+ocr_and_test: ocr_pdf pdf_text ## OCR PDF, extract text, and compare with expected verses
+	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
+	  $(PY_IMAGE) \
+	  sh -lc "python3 scripts/test_pdf_text.py --expected build/verses.json --txt build/verses.txt"
+	@echo "OCR validation passed"

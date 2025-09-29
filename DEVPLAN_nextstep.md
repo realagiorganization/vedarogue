@@ -1,3 +1,3 @@
 # Immediate Task
 
-Write the initial `scripts/build_blueprint.py` that loads Vedabase JSON, assembles a single-room YAML blueprint, and saves it to `build/roguelike_blueprint.yaml`.
+Extend `scripts/build_blueprint.py` to generate multi-room blueprints and introduce tests ensuring the YAML matches the documented schema.

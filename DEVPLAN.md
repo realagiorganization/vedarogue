@@ -4,7 +4,7 @@
 Transform Vedabase-derived materials into interactive Emacs Lisp roguelike experiences with translation-friendly publishing outputs.
 
 ## Next Step
-- Implement `scripts/build_blueprint.py` to parse Vedabase exports and produce a minimal `build/roguelike_blueprint.yaml` with one room, one item, and one NPC.
+- Expand `scripts/build_blueprint.py` to support multiple rooms/items via embeddings or manual lists, and add unit tests to validate the YAML schema.
 
 ## Backlog
 - Capture a validation plan for the docker image toolchain after the roguelike data flow is defined.
@@ -18,3 +18,4 @@ Transform Vedabase-derived materials into interactive Emacs Lisp roguelike exper
 - Docker docs and Makefile contain no hard-coded branch references.
 - Operator requested new Emacs Lisp roguelike transformer fed by Vedabase plus conversational corpora.
 - Data mapping blueprint captured in `docs/roguelike_data_mapping.md`.
+- Minimal blueprint generator now lives at `scripts/build_blueprint.py`; iterate on it rather than creating a parallel script.

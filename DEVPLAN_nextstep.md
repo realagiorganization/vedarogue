@@ -1,3 +1,3 @@
 # Immediate Task
 
-Draft the data-mapping blueprint that links Vedabase exports, GitHub reposets, promptsets, and chatsets to roguelike rooms/items/characters for the Emacs Lisp runtime.
+Write the initial `scripts/build_blueprint.py` that loads Vedabase JSON, assembles a single-room YAML blueprint, and saves it to `build/roguelike_blueprint.yaml`.

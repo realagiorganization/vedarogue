@@ -18,6 +18,11 @@ if git diff --quiet --exit-code; then
   exit 0
 fi
 
+# Ensure changelog is up to date before committing
+if [ -x scripts/generate_changelog.sh ]; then
+  bash scripts/generate_changelog.sh || true
+fi
+
 # Gather README changes
 README_CHANGES=$(git diff --name-only | grep -E '^README.*\.md$|.*/README.*\.md$' || true)
 
@@ -64,4 +69,3 @@ git add -A
 echo "$COMMIT_MSG" | git commit -F -
 git push
 echo "Pushed with message:\n$COMMIT_MSG"
-

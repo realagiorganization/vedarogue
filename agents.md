@@ -58,6 +58,9 @@ README updates:
 - Refresh deployments catalog (CI does automatically): `bash scripts/generate_deployments_readme.sh`.
 - If adding/mentioning a new TUI without GIF/docs, include an 80×80 pseudographic diagram as per the TUI Presentation Rule.
 - Ensure Dockerized flows still work or are covered by `scripts/run_docker_tests.sh`.
+- Generate release notes and changelog:
+  - `bash scripts/generate_changelog.sh` to refresh `CHANGELOG.md` from recent commits.
+  - For tags, CI will compose a GitHub Release body from commit log and attach artifacts.
 - Use the auto‑commit script to compose and push changes with proper changelog:
   - `bash scripts/auto_commit.sh "<short subject>"`
   - The script aggregates README* changes, appends a per‑README changelog block, and includes concise examples of outputs from any launched Docker runs (from `build/test_logs/*.out.txt` and `*.err.txt`).
@@ -70,3 +73,10 @@ README updates:
 
 - When relevant, run `make env-sync` to generate terminal config snippets from the active environment variables listed in `install_tui/LIST_OF_ENV_VARIABLES_TO_IMPORT`.
 - For Kitty users, print the include line via `make print-kitty-include`. For iTerm2 users, install the Dynamic Profile via `make install-iterm2-dynamic-profile`.
+## When User Says "c" (Auto-commit/Auto-push)
+
+- Before auto-commit/push, always:
+  - Run `scripts/generate_changelog.sh` to update `CHANGELOG.md`.
+  - Ensure artifacts/logs exist if relevant: run `scripts/run_docker_tests.sh` to refresh `build/test_logs/`.
+  - Then call `scripts/auto_commit.sh "<subject>"` to commit and push with required changelog blocks and docker output examples.
+  - For releases (on tags), CI will automatically publish to crates.io and GHCR and create a GitHub Release with attached artifacts.

@@ -1,0 +1,14 @@
+diskonaut
+gdu
+ncdu
+xplr
+wego
+nemu
+kitty
+iterm2
+distrobox-tui
+gif-for-cli
+ttyper
+tray-tui
+tlock
+

@@ -93,7 +93,19 @@ text(3,mid+2,"Preview")
 hline(4,1,W-2,'─')
 
 # draw some file rows with selection indicator
-rows=list("▏  ..\n▏  bin/\n▏  etc/\n▏  home/\n▏  usr/\n▏  var/\n▏  tmp/\n▏  README.md\n▏  Makefile\n▏  install_tui/\n▏  scripts/\n▏  docker/\n").split("\n")
+rows="""▏  ..
+▏  bin/
+▏  etc/
+▏  home/
+▏  usr/
+▏  var/
+▏  tmp/
+▏  README.md
+▏  Makefile
+▏  install_tui/
+▏  scripts/
+▏  docker/
+""".split("\n")
 for i,r in enumerate(rows):
     rr=5+i
     if rr>=H-2: break
@@ -119,6 +131,84 @@ PY
       echo '
 ```'
     done <<< "$tuis"
+  fi
+
+  echo
+  echo "### Session Pseudocode Screenshots (80x80)"
+  session_list_file="${SESSION_TUI_LIST_FILE:-docs/session_tui_list.txt}"
+  if [ -f "$session_list_file" ]; then
+    while IFS= read -r name; do
+      [ -z "$name" ] && continue
+      echo
+      echo "#### $name"
+      echo '```
+'
+      python3 - "$name" <<'PY'
+import sys
+name=sys.argv[1]
+W=80; H=80
+grid=[[' ']*W for _ in range(H)]
+def hline(r,c1,c2,ch='─'):
+    for c in range(c1,c2+1): grid[r][c]=ch
+def vline(c,r1,r2,ch='│'):
+    for r in range(r1,r2+1): grid[r][c]=ch
+def text(r,c,s):
+    for i,ch in enumerate(s):
+        if 0<=c+i<W: grid[r][c+i]=ch
+
+# border
+grid[0][0]='┌'; grid[0][-1]='┐'; grid[-1][0]='└'; grid[-1][-1]='┘'
+hline(0,1,W-2)
+hline(H-1,1,W-2)
+vline(0,1,H-2)
+vline(W-1,1,H-2)
+
+title=f" TUI: {name}  |  j/k: move  q: quit  ?: help"
+text(1,2,title[:W-4])
+hline(2,1,W-2)
+
+mid= int(W*0.55)
+vline(mid,3,H-2)
+text(3,2,"Items")
+text(3,mid+2,"Details")
+hline(4,1,W-2,'─')
+
+rows="""▏  ..
+▏  bin/
+▏  etc/
+▏  home/
+▏  usr/
+▏  var/
+▏  tmp/
+▏  README.md
+▏  Makefile
+▏  install_tui/
+▏  scripts/
+▏  docker/
+""".split("\n")
+for i,r in enumerate(rows):
+    rr=5+i
+    if rr>=H-3: break
+    if i==2:
+        text(rr,1,'▌')
+        text(rr,3,f" {r}")
+    else:
+        text(rr,2,f" {r}")
+
+for rr in range(6, min(H-3, 42)):
+    text(rr, mid+2, "│ “Pseudo-screenshot” glyphs; not actual UI.")
+
+status=f" {name}  |  / search  : cmd  ⓘ session"
+text(H-2,2,status[:W-4])
+
+for r in range(H):
+    print(''.join(grid[r]))
+PY
+      echo '
+```'
+    done < "$session_list_file"
+  else
+    echo "- (no session list file present)"
   fi
   echo
   if [ -f "$OUT" ]; then

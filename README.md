@@ -102,6 +102,11 @@ Notes:
  - Full CI pipeline locally (after building images):
    - `make docker_build_all && make ci`
 
+**Developer Tools: Emacs Magit in Docker**
+- Build Emacs image: `make docker-emacs-build`
+- Launch interactive Emacs (terminal) with Magit on this repo: `make docker-emacs-magit`
+- Smoke test Magit package (non-interactive): `make docker-emacs-magit-smoke`
+
 **Notes**
 - Requires either `curl` or `wget` to download, and `unzip` for zip archives.
 - `verify` is best-effort; provide `DATASET_SHA256` for integrity checking.

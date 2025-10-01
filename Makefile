@@ -148,6 +148,20 @@ install-wsl-in-docker:
 	  echo "Container started. Attach with: docker exec -it tui-wsl bash"; \
 	fi
 
+.PHONY: docker-emacs-build docker-emacs-magit docker-emacs-magit-smoke
+docker-emacs-build:
+	@docker build -f docker/emacs/Dockerfile -t vedarogue/emacs:latest .
+
+# Interactive terminal Emacs showing Magit status for the repo
+docker-emacs-magit: docker-emacs-build
+	@docker run -it --rm -v "$$PWD:/work" -w /work vedarogue/emacs:latest \
+	  -nw --eval "(progn (require 'magit) (magit-status))"
+
+# Non-interactive smoke test for Magit availability
+docker-emacs-magit-smoke: docker-emacs-build
+	@docker run --rm -v "$$PWD:/work" -w /work vedarogue/emacs:latest \
+	  --batch --eval "(progn (require 'magit) (message \"Magit OK\"))"
+
 .PHONY: cargo-build cargo-test cargo-run docker-make-runner-build docker-make-runner-run
 
 cargo-build:

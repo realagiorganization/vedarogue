@@ -47,3 +47,14 @@ Notes:
 - These are intentionally stubs (no-op implementations) that compile and provide typed entry points for future work and unit tests.
 - Aligns with scripts and Makefile targets currently in the repository.
 
+User Flows (BDD Features):
+- 1.x installers: `features/1_tui_installers.feature`
+- 2.x env sync: `features/2_env_sync.feature`
+- 3.x dockerized TUIs: `features/3_dockerized_tuis.feature`
+- 4.x WSL: `features/4_wsl.feature`
+- 5.x Windows container: `features/5_windows_container.feature`
+- 6.x CI publish & release: `features/6_ci_publish.feature`
+- 7.x docker test logs: `features/7_docker_test_logs.feature`
+- 8.x make-runner CLI: `features/8_make_runner.feature`
+- 9.x auto-commit & changelog: `features/9_autocommit_changelog.feature`
+- 10.x release tagging: `features/10_release.feature`

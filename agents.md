@@ -2,7 +2,9 @@
 
 # Agent Operational Guidelines
 
-IMPORTANT: Always enumerate testable or potentially testable features and scaffold Rust implementation stubs for them under `crates/impl-stubs` (see `README.implementations.rust.md`). Keep this up to date as new testable areas appear.
+IMPORTANT: Always enumerate testable or potentially testable features and:
+- Scaffold Rust implementation stubs under `crates/impl-stubs` (see `README.implementations.rust.md`).
+- Add corresponding user flows as BDD features under `features/*.feature` with quoted environment variables and parameters. Keep the mapping and numbering consistent (1.2.3 style) and cross-reference from `README.implementations.rust.md`.
 
 This repository includes a TUI installer and a cross‑platform automation stack (Makefile, cargo runner, Docker, CI). Agents interacting with this repo should follow these rules when introducing or referencing TUIs and when running commands.
 

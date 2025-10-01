@@ -37,6 +37,17 @@ jobs:
       - name: Smoke run make list via container
         run: |
           docker run --rm -v "$PWD:/work" -w /work make-runner:ci list
+      - name: Run Docker tests and capture CSV logs
+        run: |
+          bash scripts/run_docker_tests.sh
+      - name: Convert CSV logs to YAML
+        run: |
+          python3 scripts/csv_to_yaml.py build/test_logs/tests.csv build/test_logs/tests.yaml
+      - name: Upload Docker test logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-test-logs
+          path: build/test_logs
       - name: Generate deployments catalog
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

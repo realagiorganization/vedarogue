@@ -1,0 +1,9 @@
+# One variable name per line. Lines starting with # are ignored.
+# Values are read from the current environment and exported to terminal configs.
+# Example variables you might want to propagate:
+PROJECT
+ENV
+REGION
+SERVICE
+TEAM
+

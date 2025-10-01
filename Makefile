@@ -1,279 +1,168 @@
-.SHELLFLAGS := -eu -o pipefail -c
-SHELL := /bin/bash
+.PHONY: help list install-all verify-all install-% verify-%
 
-.PHONY: help fetch verify extract info env clean distclean tree test_dataset_was_fetched \
-setup hf_fetch hf_info hf_test_dataset_was_fetched \
-hf_export_json emacs_tex latex_pdf build_pdf ocr_pdf pdf_text ocr_and_test \
-dspy_yaml dspy_test dspy_notebook watch_autocommit \
-check_docker check_images images_pull docker_build_emacs docker_build_tex docker_build_ocr docker_build_poppler docker_build_all \
-ci
-.DEFAULT_GOAL := help
+TOOLS = diskonaut gdu ncdu xplr wego nemu kitty iterm2 distrobox-tui gif-for-cli ttyper tray-tui tlock
 
-# Load local configuration if present
--include .env
+help: list
 
-# Directories
-DATA_DIR ?= data
-RAW_DIR ?= $(DATA_DIR)/raw
-EXTRACT_DIR ?= $(DATA_DIR)/external
-PROCESSED_DIR ?= $(DATA_DIR)/processed
+list:
+	@echo "Available tools: $(TOOLS)"
+	@echo "Targets: install-<tool>, verify-<tool>, install-all, verify-all, install-win, install-win-docker, install-wsl, install-wsl-in-docker, cargo-* , docker-make-runner-*"
 
-# Dataset config (override in .env or CLI)
-DATASET_NAME ?= dataset
-DATASET_URL ?=
-DATASET_SHA256 ?=
-# Allow custom filename; fallback to last path segment of URL
-DATASET_FILENAME ?= $(or $(DATASET_FILE),$(notdir $(DATASET_URL)))
-DATASET_ARCHIVE ?= $(RAW_DIR)/$(DATASET_FILENAME)
+install-all: $(TOOLS:%=install-% )
+	@echo "All installs attempted."
 
-MAKE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-SCRIPTS_DIR := $(MAKE_DIR)scripts
-BUILD_DIR := $(MAKE_DIR)build
-CI_HF_SPLITS ?= train[:10]
-CI_VRANGE ?= train:0-9
-CI_VRANGE_SHORT ?= train:0-3
-CI_VTITLE ?= Selected Verses (CI)
+verify-all: $(TOOLS:%=verify-% )
+	@echo "All verifies attempted."
 
-help: ## Show available targets and brief help
-	@echo "Dataset Make targets:" && \
-	awk 'BEGIN {FS = ":.*?## "}; /^[a-zA-Z0-9_\/_-]+:.*?## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-	@echo ''
-	@echo 'Variables (override via .env or CLI):'
-	@printf "  %-18s %s\n" \
-	  DATASET_NAME "Name of the dataset" \
-	  DATASET_URL "HTTP(S) URL to download from" \
-	  DATASET_SHA256 "Optional SHA256 checksum (recommended)" \
-	  DATA_DIR "Base data directory (default: data)" \
-	  HF_DATASET_ID "HF dataset id (e.g. user/name)" \
-	  HF_SPLITS "Comma-separated splits to export (optional)" \
-	  HF_REVISION "Branch/tag/commit sha (optional)" \
-	  HF_TOKEN "Auth token if needed (optional)" \
-	  EMACS_IMAGE "Docker image for Emacs batch (required)" \
-	  TEX_IMAGE "Docker image for LaTeX build (required)" \
-	  OCR_IMAGE "Docker image for OCR (required)" \
-	  POPPLER_IMAGE "Docker image with pdftotext (required)" \
-	  PY_IMAGE "Docker image for Python test (default: python:3.11-slim)" \
-	  OPENAI_API_KEY "LLM key for DSPy (optional)" \
-	  OPENAI_MODEL "LLM model id (default: gpt-4o-mini)" \
-	  OPENAI_BASE "LLM API base URL (optional)"
+install-%:
+	@bash install_tui/$*.sh install
 
-$(RAW_DIR) $(EXTRACT_DIR) $(PROCESSED_DIR):
-	@mkdir -p $@
+verify-%:
+	@bash install_tui/$*.sh verify
 
-.check_vars:
-	@if [ -z "$(DATASET_URL)" ]; then \
-	  echo "ERROR: DATASET_URL is not set. Set it in .env or pass on CLI, e.g. make fetch DATASET_URL=..."; \
+.PHONY: install-win
+install-win:
+	@echo "Running Windows installer via PowerShell"
+	@powershell -NoProfile -ExecutionPolicy Bypass -File install_tui/install_win.ps1 || \
+	  pwsh -NoProfile -ExecutionPolicy Bypass -File install_tui/install_win.ps1
+
+.PHONY: install-win-docker
+# Build and run a persistent Windows container with the repository mounted.
+# Requires: Docker Desktop on Windows in Windows containers mode.
+install-win-docker:
+	@set -e; \
+	OS=$$(uname -s 2>/dev/null || echo Windows_NT); \
+	SERVER_OS=$$(docker version -f '{{.Server.Os}}' 2>/dev/null || echo unknown); \
+	if [ "$$SERVER_OS" != "windows" ]; then \
+	  echo "ERROR: Docker server OS is '$$SERVER_OS'. Please run on Windows with Docker in Windows containers mode."; \
 	  exit 1; \
-	fi
-	@if [ -z "$(DATASET_FILENAME)" ] || [ "$(DATASET_FILENAME)" = "/" ]; then \
-	  echo "ERROR: Could not determine DATASET_FILENAME. Set DATASET_FILENAME in .env or pass on CLI."; \
-	  exit 1; \
-	fi
-
-fetch: $(RAW_DIR) .check_vars ## Download dataset to data/raw
-	@"$(SCRIPTS_DIR)/download.sh" -u "$(DATASET_URL)" -o "$(DATASET_ARCHIVE)"
-	@$(MAKE) verify || true
-	@echo "Downloaded: $(DATASET_ARCHIVE)"
-
-verify: .check_vars ## Verify SHA256 checksum if provided
-	@"$(SCRIPTS_DIR)/checksum.sh" -f "$(DATASET_ARCHIVE)" -s "$(DATASET_SHA256)"
-
-extract: $(EXTRACT_DIR) .check_vars ## Extract archive into data/external
-	@"$(SCRIPTS_DIR)/extract.sh" -f "$(DATASET_ARCHIVE)" -d "$(EXTRACT_DIR)"
-	@echo "Extracted into: $(EXTRACT_DIR)"
-
-test_dataset_was_fetched: fetch ## Test: dataset file exists and is non-empty
-	@if [ -s "$(DATASET_ARCHIVE)" ]; then \
-	  echo "PASS: $(DATASET_ARCHIVE) exists and is non-empty"; \
+	fi; \
+	if [ "$$OS" = "Windows_NT" ]; then \
+	  HOST_PWD=$$(powershell -NoProfile -Command "(Resolve-Path .).Path" | tr -d '\r'); \
 	else \
-	  echo "FAIL: $(DATASET_ARCHIVE) missing or empty"; \
-	  exit 1; \
-	fi
-
-info: ## Show resolved configuration
-	@"$(SCRIPTS_DIR)/print_env.sh"
-
-env: ## Create .env from template if missing
-	@if [ -f .env ]; then echo ".env already exists"; else cp .env.example .env && echo "Created .env"; fi
-
-tree: ## Show data directory tree (requires tree, fallback to find)
-	@{ command -v tree >/dev/null && tree -a -L 2 $(DATA_DIR) || (echo "tree not found; using find" && find $(DATA_DIR) -maxdepth 2 -print 2>/dev/null) ; } || true
-
-clean: ## Remove extracted and processed data
-	@rm -rf "$(EXTRACT_DIR)" "$(PROCESSED_DIR)"
-	@echo "Cleaned extracted and processed data"
-
-distclean: clean ## Remove all data including downloads
-	@rm -rf "$(RAW_DIR)"
-	@echo "Removed raw downloads"
-
-# ---------------------------
-# Hugging Face integration
-# ---------------------------
-
-HF_DATASET_ID ?= manojbalaji1/anveshana
-HF_SPLITS ?=
-HF_REVISION ?=
-
-PY ?= python3
-
-setup: ## Install Python dependencies for Hugging Face datasets
-	@{ command -v $(PY) >/dev/null && $(PY) -m pip install -r requirements.txt; } || { echo "Python not found"; exit 1; }
-
-hf_fetch: $(EXTRACT_DIR) ## Fetch HF dataset and export to data/external
-	@HF_TOKEN="$(HF_TOKEN)" $(PY) scripts/hf_fetch.py \
-	  --dataset "$(HF_DATASET_ID)" \
-	  --dest "$(EXTRACT_DIR)" \
-	  $(if $(HF_REVISION),--revision "$(HF_REVISION)",) \
-	  $(if $(HF_SPLITS),--splits "$(HF_SPLITS)",)
-	@echo "HF dataset exported to: $(EXTRACT_DIR)"
-
-hf_info: ## Show HF-related configuration
-	@echo "HF_DATASET_ID = $(HF_DATASET_ID)"
-	@echo "HF_SPLITS     = $(HF_SPLITS)"
-	@echo "HF_REVISION   = $(HF_REVISION)"
-	@echo "HF_TOKEN set  = $(if $(HF_TOKEN),yes,no)"
-
-hf_test_dataset_was_fetched: hf_fetch ## Test: HF files exist in extract dir
-	@cnt=$$(find "$(EXTRACT_DIR)" -maxdepth 1 -type f -name "$(shell echo $(HF_DATASET_ID) | tr "/" "_")*.parquet" | wc -l | tr -d ' '); \
-	if [ "$$cnt" -gt 0 ]; then \
-	  echo "PASS: Found $$cnt parquet file(s) for $(HF_DATASET_ID) in $(EXTRACT_DIR)"; \
-	else \
-	  echo "FAIL: No parquet files for $(HF_DATASET_ID) in $(EXTRACT_DIR)"; \
-	  exit 1; \
-	fi
-
-# ---------------------------
-# Emacs + LaTeX + OCR toolchain (Docker only)
-# ---------------------------
-
-# Default to locally built images to ensure multi-arch compatibility.
-# Build them via: make docker_build_all
-EMACS_IMAGE ?= vedarogue/emacs:latest
-TEX_IMAGE ?= vedarogue/tex:latest
-OCR_IMAGE ?= vedarogue/ocr:latest
-POPPLER_IMAGE ?= vedarogue/poppler:latest
-PY_IMAGE ?= python:3.11-slim
-
-check_docker:
-	@command -v docker >/dev/null 2>&1 || { echo "ERROR: docker is not installed or not in PATH"; exit 1; }
-	@docker info >/dev/null 2>&1 || { echo "ERROR: docker daemon not running or not accessible"; exit 1; }
-
-check_images: check_docker
-	@missing=""; \
-	for img in "$(EMACS_IMAGE)" "$(TEX_IMAGE)" "$(OCR_IMAGE)" "$(POPPLER_IMAGE)"; do \
-	  if ! docker image inspect $$img >/dev/null 2>&1; then \
-	    missing="$$missing $$img"; \
+	  HOST_PWD=$$(pwd); \
+	fi; \
+	echo "Building Windows image 'tui-win:latest'..."; \
+	docker build -f docker/windows/Dockerfile -t tui-win:latest .; \
+	echo "Creating persistent volume 'tui-win-home' (if missing)..."; \
+	docker volume inspect tui-win-home >/dev/null 2>&1 || docker volume create tui-win-home >/dev/null; \
+	if docker ps -a --format '{{.Names}}' | grep -q '^tui-win$$'; then \
+	  echo "Container 'tui-win' already exists."; \
+	  if [ "$$(docker inspect -f '{{.State.Running}}' tui-win)" != "true" ]; then \
+	    echo "Starting existing container 'tui-win'..."; \
+	    docker start tui-win >/dev/null; \
 	  fi; \
-	done; \
-	if [ -n "$$missing" ]; then \
-	  echo "ERROR: Missing required images:$$missing"; \
-	  echo "Build them with: make docker_build_all"; \
-	  echo "Or pull/provide alternatives via EMACS_IMAGE/TEX_IMAGE/OCR_IMAGE/POPPLER_IMAGE variables."; \
-	  exit 1; \
+	  echo "Attach with: docker exec -it tui-win powershell"; \
+	else \
+	  echo "Launching new persistent container 'tui-win'..."; \
+	  env_flags=; \
+	  while IFS= read -r name; do \
+	    [ -z "$$name" ] && continue; \
+	    case "$$name" in \#*) continue;; esac; \
+	    val=$$(printenv "$$name"); \
+	    [ -n "$$val" ] && env_flags="$$env_flags -e $$name"; \
+	  done < install_tui/LIST_OF_ENV_VARIABLES_TO_IMPORT; \
+	  docker run -d --restart unless-stopped --name tui-win --hostname tui-win \
+	    -v tui-win-home:C:\\Users\\ContainerUser \
+	    -v "$$HOST_PWD:C:\\work" \
+	    $$env_flags \
+	    tui-win:latest >/dev/null; \
+	  echo "Container started. Attach with: docker exec -it tui-win powershell"; \
+	fi
+	@echo "Attempting to setup WSL on host (best-effort)..."
+	@$(MAKE) --no-print-directory install-wsl
+	@echo "Attempting to setup Linux dev container (WSL-in-docker equivalent)..."
+	@$(MAKE) --no-print-directory install-wsl-in-docker
+	@echo "Syncing environment variables for kitty/iTerm2..."
+	@$(MAKE) --no-print-directory env-sync
+
+.PHONY: env-sync install-iterm2-dynamic-profile print-kitty-include
+env-sync:
+	@bash install_tui/env_sync.sh
+
+# Install iTerm2 Dynamic Profile by copying it to user's DynamicProfiles directory
+install-iterm2-dynamic-profile: env-sync
+	@set -e; \
+	PROFILE_DIR="$$HOME/Library/Application Support/iTerm2/DynamicProfiles"; \
+	mkdir -p "$$PROFILE_DIR"; \
+	cp install_tui/generated/iterm2_dynamic_profile.json "$$PROFILE_DIR/tui-env-profile.json"; \
+	echo "Installed dynamic profile to: $$PROFILE_DIR/tui-env-profile.json"; \
+	echo "Open iTerm2 Preferences > Profiles to see 'TUI Env Profile'."
+
+# Print kitty include line to add generated env config to kitty.conf
+print-kitty-include: env-sync
+	@absfile=$$(python3 -c 'import os,sys; print(os.path.abspath("install_tui/generated/kitty_env.conf"))'); \
+	echo "Add this line to your kitty.conf:"; \
+	echo "  include $$absfile"
+
+.PHONY: install-wsl
+# Installs WSL with Ubuntu on Windows hosts (best-effort; may require admin and reboot)
+install-wsl:
+	@set -e; \
+	OS=$$(uname -s 2>/dev/null || echo Windows_NT); \
+	if [ "$$OS" != "Windows_NT" ]; then \
+	  echo "install-wsl: host OS is not Windows; skipping."; \
+	  exit 0; \
+	fi; \
+	if command -v powershell >/dev/null 2>&1; then PSH=powershell; \
+	elif command -v pwsh >/dev/null 2>&1; then PSH=pwsh; \
+	else echo "install-wsl: PowerShell not found"; exit 0; fi; \
+	$$PSH -NoProfile -ExecutionPolicy Bypass -Command "\
+	  if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {\
+	    Write-Host 'WSL executable not found. Attempting wsl --install (requires admin).';\
+	    try { wsl --install } catch { Write-Host 'Please run an elevated PowerShell and execute: wsl --install' };\
+	    exit 0;\
+	  }\
+	  try { wsl --status | Out-Host } catch { Write-Host 'wsl --status failed (continuing)'; }\
+	  try { wsl --list --online | Out-Null } catch { Write-Host 'wsl list failed (continuing)'; }\
+	  Write-Host 'Ensuring Ubuntu distribution (may require admin & reboot)...';\
+	  try { wsl --install -d Ubuntu } catch { Write-Host 'If this fails, run elevated: wsl --install -d Ubuntu' }"
+
+.PHONY: install-wsl-in-docker
+# Creates a persistent Linux container as a WSL-like dev environment (requires Docker Linux containers)
+install-wsl-in-docker:
+	@set -e; \
+	SERVER_OS=$$(docker version -f '{{.Server.Os}}' 2>/dev/null || echo unknown); \
+	if [ "$$SERVER_OS" != "linux" ]; then \
+	  echo "install-wsl-in-docker: Docker server OS is '$$SERVER_OS'. Switch Docker Desktop to Linux containers and re-run."; \
+	  exit 0; \
+	fi; \
+	HOST_PWD=$$(pwd); \
+	echo "Building Linux image 'tui-wsl:latest'..."; \
+	docker build -f docker/linux/Dockerfile -t tui-wsl:latest .; \
+	echo "Creating persistent volume 'tui-wsl-home' (if missing)..."; \
+	docker volume inspect tui-wsl-home >/dev/null 2>&1 || docker volume create tui-wsl-home >/dev/null; \
+	if docker ps -a --format '{{.Names}}' | grep -q '^tui-wsl$$'; then \
+	  echo "Container 'tui-wsl' already exists."; \
+	  if [ "$$(docker inspect -f '{{.State.Running}}' tui-wsl)" != "true" ]; then \
+	    echo "Starting existing container 'tui-wsl'..."; \
+	    docker start tui-wsl >/dev/null; \
+	  fi; \
+	  echo "Attach with: docker exec -it tui-wsl bash"; \
+	else \
+	  echo "Launching new persistent Linux container 'tui-wsl'..."; \
+	  docker run -d --restart unless-stopped --name tui-wsl --hostname tui-wsl \
+	    -v tui-wsl-home:/home/dev \
+	    -v "$$HOST_PWD:/work" \
+	    tui-wsl:latest >/dev/null; \
+	  echo "Container started. Attach with: docker exec -it tui-wsl bash"; \
 	fi
 
-images_pull: check_docker ## Attempt to pull configured images from registries
-	@set -e; for img in "$(EMACS_IMAGE)" "$(TEX_IMAGE)" "$(OCR_IMAGE)" "$(POPPLER_IMAGE)"; do \
-	  echo "Pulling $$img"; docker pull $$img; \
-	done
+.PHONY: cargo-build cargo-test cargo-run docker-make-runner-build docker-make-runner-run
 
-$(BUILD_DIR):
-	@mkdir -p "$(BUILD_DIR)"
+cargo-build:
+	@cargo build --release
 
-hf_export_json: $(BUILD_DIR) ## Export HF dataset rows to JSON for Emacs
-	@$(PY) scripts/hf_export_json.py --dataset "$(HF_DATASET_ID)" \
-	  $(if $(HF_SPLITS),--splits "$(HF_SPLITS)",) \
-	  $(if $(HF_REVISION),--revision "$(HF_REVISION)",) \
-	  --out "$(BUILD_DIR)/verses.json"
+cargo-test:
+	@cargo test --all
 
-emacs_tex: check_images $(BUILD_DIR) ## Run Emacs in Docker to generate LaTeX from JSON
-	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
-	  -e VJSON="build/verses.json" \
-	  -e VOUT="build/verses.tex" \
-	  -e VRANGE="$(VRANGE)" \
-	  -e VTITLE="$(VTITLE)" \
-	  $(EMACS_IMAGE) \
-	  emacs --batch -Q -l scripts/verses.el -f verses-main
-	@echo "LaTeX generated at build/verses.tex"
+# usage: make cargo-run ARGS="run install-all" or ARGS="list"
+cargo-run:
+	@cargo run -- $(ARGS)
 
-latex_pdf: check_images $(BUILD_DIR) ## Compile LaTeX to PDF in Docker
-	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
-	  $(TEX_IMAGE) \
-	  sh -lc "latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir=build build/verses.tex"
-	@echo "PDF at build/verses.pdf"
+docker-make-runner-build:
+	@docker build -f docker/cargo/Dockerfile -t make-runner:latest .
 
-build_pdf: hf_export_json emacs_tex latex_pdf ## Export JSON, gen LaTeX, compile PDF
-
-ocr_pdf: check_images ## Run OCR on PDF to add text layer
-	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
-	  $(OCR_IMAGE) \
-	  ocrmypdf --skip-text -l san+eng build/verses.pdf build/verses-ocr.pdf
-	@echo "OCRed PDF at build/verses-ocr.pdf"
-
-pdf_text: check_images ## Extract text from OCRed PDF to a .txt file
-	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
-	  $(POPPLER_IMAGE) \
-	  pdftotext -enc UTF-8 -layout build/verses-ocr.pdf build/verses.txt
-	@echo "Extracted text at build/verses.txt"
-
-ocr_and_test: ocr_pdf pdf_text ## OCR PDF, extract text, and compare with expected verses
-	@docker run --rm -v "$(MAKE_DIR)":/work -w /work \
-	  $(PY_IMAGE) \
-	  sh -lc "python3 scripts/test_pdf_text.py --expected build/verses.json --txt build/verses.txt"
-	@echo "OCR validation passed"
-
-# ---------------------------
-# DSPy roguelike YAML pipeline
-# ---------------------------
-
-dspy_yaml: ## Generate roguelike YAML from verses using DSPy or fallback
-	@python3 scripts/dspy_generate_yaml.py --json build/verses.json --out build/roguelike.yaml --range "$(VRANGE)" --guidelines "$(GUIDELINES)"
-	@echo "Roguelike YAML at build/roguelike.yaml"
-
-dspy_test: ## Run pytest for roguelike YAML generator
-	@pytest -q
-
-dspy_notebook: ## Execute self-improvement Jupyter notebook
-	@jupyter nbconvert --to notebook --execute notebooks/roguelike_self_improve.ipynb --output build/roguelike_self_improve.out.ipynb
-
-# ---------------------------
-# CI convenience target (full pipeline + tests)
-# ---------------------------
-
-ci: check_images ## Run end-to-end pipeline and tests for CI
-	@$(MAKE) setup
-	@$(MAKE) hf_test_dataset_was_fetched
-	@$(MAKE) hf_export_json HF_SPLITS="$(CI_HF_SPLITS)"
-	@$(MAKE) emacs_tex VRANGE="$(CI_VRANGE)" VTITLE="$(CI_VTITLE)"
-	@$(MAKE) latex_pdf
-	@$(MAKE) ocr_and_test
-	@$(MAKE) dspy_yaml VRANGE="$(CI_VRANGE_SHORT)"
-	@$(MAKE) dspy_test
-	@$(MAKE) dspy_notebook
-	@echo "CI pipeline completed successfully"
-
-# ---------------------------
-# Local Docker image builds (multi-arch-friendly via Debian base)
-# ---------------------------
-
-docker_build_emacs: ## Build local Emacs image (vedarogue/emacs:latest)
-	@docker build -t vedarogue/emacs:latest -f docker/emacs/Dockerfile docker/emacs
-
-docker_build_tex: ## Build local TeX image (vedarogue/tex:latest)
-	@docker build -t vedarogue/tex:latest -f docker/tex/Dockerfile docker/tex
-
-docker_build_ocr: ## Build local OCR image (vedarogue/ocr:latest)
-	@docker build -t vedarogue/ocr:latest -f docker/ocr/Dockerfile docker/ocr
-
-docker_build_poppler: ## Build local Poppler image (vedarogue/poppler:latest)
-	@docker build -t vedarogue/poppler:latest -f docker/poppler/Dockerfile docker/poppler
-
-docker_build_all: docker_build_emacs docker_build_tex docker_build_ocr docker_build_poppler ## Build all local images
-
-# ---------------------------
-# Dev tooling
-# ---------------------------
-
-watch_autocommit: ## Watch files and auto-commit using codex-cli for messages
-	@bash scripts/watch_autocommit.sh
+# usage: make docker-make-runner-run ARGS="run list"
+docker-make-runner-run: docker-make-runner-build
+	@docker run -i --rm -v "$$PWD:/work" -w /work make-runner:latest $(ARGS)

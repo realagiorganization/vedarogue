@@ -1,0 +1,11 @@
+{
+  "Profiles": [
+    {
+      "Name": "TUI Env Profile",
+      "Guid": "8a0c1b7a-1c0f-4b5e-b1f7-54c3",
+      "Command": "/bin/bash -lc /Users/stc/vedarogue/install_tui/generated/iterm2_env_launcher.sh",
+      "Working Directory": "/Users/stc/vedarogue",
+      "Badge Text": "TUI-ENV"
+    }
+  ]
+}

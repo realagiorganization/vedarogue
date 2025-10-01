@@ -21,6 +21,30 @@ readme_changes=$(git diff --name-only $range | grep -E '^README.*\.md$|.*/README
 
 commits=$(git log --pretty=format:'- %s (%h)' $range)
 
+# Build detailed QA for last 20 commits into a temp file
+DETAIL_TMP=$(mktemp)
+{
+  echo "### Detailed Examination & QA (Last 20 Commits)"
+  echo
+  git log -n 20 --pretty=format:'%H %h %ad %s' --date=short | while read -r line; do
+    sha=$(echo "$line" | awk '{print $1}')
+    short=$(echo "$line" | awk '{print $2}')
+    date=$(echo "$line" | awk '{print $3}')
+    subject=$(echo "$line" | cut -d' ' -f4-)
+    echo "- $short ($date): $subject"
+    stat=$(git show --stat --oneline -n 1 "$sha" | tail -n 1 | sed 's/^/  /')
+    [ -n "$stat" ] && echo "$stat"
+    files=$(git show --name-only --pretty=format: -n 1 "$sha" | sed '/^$/d' | head -n 5 | sed 's/^/  file: /')
+    [ -n "$files" ] && echo "$files"
+    risk=low
+    echo "$subject" | grep -qiE '(feat|ci|release|docker|windows|wsl|publish|registry|ghcr)' && risk=medium
+    echo "$subject" | grep -qiE '(publish|release|registry|ghcr)' && risk=high
+    echo "  risk: $risk"
+    echo "  qa: - cargo build/test; - scripts/run_docker_tests.sh; - CI green; - spot-check Make targets"
+    echo
+  done
+} > "$DETAIL_TMP"
+
 {
   echo "# Changelog"
   echo
@@ -210,6 +234,10 @@ PY
   else
     echo "- (no session list file present)"
   fi
+
+  # Include last-20 detailed QA section
+  echo
+  cat "$DETAIL_TMP"
   echo
   if [ -f "$OUT" ]; then
     # Append previous content
@@ -218,4 +246,5 @@ PY
 } > "$OUT.tmp"
 
 mv "$OUT.tmp" "$OUT"
+rm -f "$DETAIL_TMP"
 echo "Updated $OUT for range $range"

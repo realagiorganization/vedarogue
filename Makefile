@@ -181,6 +181,14 @@ docker-make-runner-build:
 docker-make-runner-run: docker-make-runner-build
 	@docker run -i --rm -v "$$PWD:/work" -w /work make-runner:latest $(ARGS)
 
+.PHONY: gh-local-runner-build gh-local-runner-run
+gh-local-runner-build:
+	@cargo build -p gh-local-runner --release
+
+# usage: make gh-local-runner-run WF=.github/workflows/cargo-ci.yml JOB=docker-build
+gh-local-runner-run:
+	@cargo run -q -p gh-local-runner -- --workflow "$(WF)" --job "$(JOB)"
+
 .PHONY: docker-tuis
 # Launch a list of TUIs inside a Docker image.
 # Usage:

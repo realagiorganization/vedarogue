@@ -1,0 +1,17 @@
+[package]
+name = "gh-local-runner"
+version = "0.1.0"
+edition = "2021"
+description = "Run GitHub Actions workflows locally (host-exec)"
+license = "MIT"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1"
+which = "6"
+thiserror = "1"
+indexmap = "2"
+

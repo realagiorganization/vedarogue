@@ -41,6 +41,17 @@ README updates:
 - install_tui/README.md: <one-line summary>
 ```
 
+## Update Checklist (Always Before Commit/Push)
+
+- Run environment sync if env vars changed: `make env-sync`.
+- Refresh deployments catalog (CI does automatically): `bash scripts/generate_deployments_readme.sh`.
+- If adding/mentioning a new TUI without GIF/docs, include an 80×80 pseudographic diagram as per the TUI Presentation Rule.
+- Ensure Dockerized flows still work or are covered by `scripts/run_docker_tests.sh`.
+- Use the auto‑commit script to compose and push changes with proper changelog:
+  - `bash scripts/auto_commit.sh "<short subject>"`
+  - The script aggregates README* changes, appends a per‑README changelog block, and includes concise examples of outputs from any launched Docker runs (from `build/test_logs/*.out.txt` and `*.err.txt`).
+- Push to the active branch once the above is complete.
+
 ## Environment Propagation
 
 - When relevant, run `make env-sync` to generate terminal config snippets from the active environment variables listed in `install_tui/LIST_OF_ENV_VARIABLES_TO_IMPORT`.

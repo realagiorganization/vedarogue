@@ -53,6 +53,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           bash scripts/generate_deployments_readme.sh
+      - name: LFS budget audit
+        continue-on-error: true
+        env:
+          LFS_AUDIT_FAIL: "true"
+        run: |
+          bash scripts/check_lfs_budget.sh
+      - name: Upload LFS audit logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lfs-audit-logs
+          path: build/lfs_report
       - name: Upload deployments catalog
         uses: actions/upload-artifact@v4
         with:

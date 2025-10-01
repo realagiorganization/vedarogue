@@ -189,6 +189,10 @@ gh-local-runner-build:
 gh-local-runner-run:
 	@cargo run -q -p gh-local-runner -- --workflow "$(WF)" --job "$(JOB)"
 
+.PHONY: lfs-audit
+lfs-audit:
+	@bash scripts/check_lfs_budget.sh
+
 .PHONY: docker-tuis
 # Launch a list of TUIs inside a Docker image.
 # Usage:

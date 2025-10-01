@@ -18,8 +18,8 @@ which = "6"
 assert_cmd = "2"
 predicates = "3"
 
-$&
-    "crates/gh-local-runner",
-[
+[workspace]
+members = [
     "crates/impl-stubs",
+    "crates/gh-local-runner",
 ]

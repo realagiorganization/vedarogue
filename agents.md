@@ -23,6 +23,16 @@ Notes:
   - Docker: `docker run -i --rm -v "$PWD:/work" -w /work make-runner:latest run <target>`
 - When showcasing commands, prefer Makefile targets over long shell invocations; this ensures consistent behavior across environments and CI.
 
+## Dockerized TUIs Rule
+
+- Launch TUIs using the Makefile target `docker-tuis` which accepts a space-separated list of commands:
+  - Example: `make docker-tuis TUIS="xplr ncdu"`
+  - Supports per-item working directory with `subdir:cmd` syntax: `make docker-tuis TUIS="tools/shop:tui-shop"`
+- Image selection:
+  - Set `DOCKER_IMAGE_TUI` to override the image.
+  - If unset, the helper reads `_secrets.registered-hosts.md` for `DOCKER_IMAGE_TUI` or `DOCKER_CONTAINER_HOST_REGISTRY_NAME` (fallback to `<registry>/awesome/tui:latest`).
+- Keep `_secrets.registered-hosts.md` maintained with your registry host or a specific TUI image.
+
 ## Deployment Catalog Rule
 
 - Before committing and pushing, always ensure the latest deployments catalog is generated and included:

@@ -180,3 +180,12 @@ docker-make-runner-build:
 # usage: make docker-make-runner-run ARGS="run list"
 docker-make-runner-run: docker-make-runner-build
 	@docker run -i --rm -v "$$PWD:/work" -w /work make-runner:latest $(ARGS)
+
+.PHONY: docker-tuis
+# Launch a list of TUIs inside a Docker image.
+# Usage:
+#   make docker-tuis TUIS="xplr ncdu" [DOCKER_IMAGE_TUI=image]
+# Supports entries of form "subdir:cmd" to set working directory per TUI.
+docker-tuis:
+	@[ -n "$(TUIS)" ] || { echo "TUIS variable is empty. Example: make docker-tuis TUIS=\"xplr ncdu\""; exit 2; }
+	@DOCKER_IMAGE_TUI="$(DOCKER_IMAGE_TUI)" bash scripts/run_tuis_docker.sh $(TUIS)

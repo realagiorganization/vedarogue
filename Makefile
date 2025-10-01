@@ -188,4 +188,12 @@ docker-make-runner-run: docker-make-runner-build
 # Supports entries of form "subdir:cmd" to set working directory per TUI.
 docker-tuis:
 	@[ -n "$(TUIS)" ] || { echo "TUIS variable is empty. Example: make docker-tuis TUIS=\"xplr ncdu\""; exit 2; }
-	@DOCKER_IMAGE_TUI="$(DOCKER_IMAGE_TUI)" bash scripts/run_tuis_docker.sh $(TUIS)
+	@DOCKER_IMAGE_TUI="$(DOCKER_IMAGE_TUI)" DEFAULT_PROFILE="$(PROFILE)" bash scripts/run_tuis_docker.sh $(TUIS)
+
+.PHONY: docker-tuis-file
+# Launch TUIs listed in a file (one per line; supports comments with #).
+# Each line supports optional profile and subdir prefixes: [profile@][subdir:]cmd
+# Usage: make docker-tuis-file TUIS_FILE=path/to/list.txt [PROFILE=default]
+docker-tuis-file:
+	@[ -n "$(TUIS_FILE)" ] || { echo "Provide TUIS_FILE=..."; exit 2; }
+	@DOCKER_IMAGE_TUI="$(DOCKER_IMAGE_TUI)" DEFAULT_PROFILE="$(PROFILE)" bash scripts/run_tuis_docker.sh --file "$(TUIS_FILE)"

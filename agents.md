@@ -31,6 +31,7 @@ Notes:
 - Image selection:
   - Set `DOCKER_IMAGE_TUI` to override the image.
   - If unset, the helper reads `_secrets.registered-hosts.md` for `DOCKER_IMAGE_TUI` or `DOCKER_CONTAINER_HOST_REGISTRY_NAME` (fallback to `<registry>/awesome/tui:latest`).
+- Profiles: maintain `_secrets.tui-profiles.env` to map profile names to images; see `AGENTS.d/_secrets.tui-profiles.env.md` for full format and examples.
 - Keep `_secrets.registered-hosts.md` maintained with your registry host or a specific TUI image.
 
 ## Deployment Catalog Rule
@@ -61,6 +62,9 @@ README updates:
   - `bash scripts/auto_commit.sh "<short subject>"`
   - The script aggregates README* changes, appends a per‑README changelog block, and includes concise examples of outputs from any launched Docker runs (from `build/test_logs/*.out.txt` and `*.err.txt`).
 - Push to the active branch once the above is complete.
+- Keep profiles and registry mapping current:
+  - `_secrets.tui-profiles.env` (see `AGENTS.d/_secrets.tui-profiles.env.md`)
+  - `_secrets.registered-hosts.md`
 
 ## Environment Propagation
 
